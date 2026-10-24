@@ -1,3 +1,6 @@
+# NAME Presto Snake
+# ICON joystick
+# DESC Snake with the Qw/ST Pad
 import utime
 from random import randint
 
@@ -14,7 +17,8 @@ Controls:
 * D = Move Backward
 * R = Move Right
 * L = Move left
-* + = Continue (once the current level is complete)
+* + = Start / Continue (skips the wait on the title, score and game over screens)
+* - = Pause / resume while playing
 """
 
 # Setup the Presto display
@@ -148,7 +152,7 @@ class Snake:
 
                 center_x = x + tile_size // 2
                 center_y = y + tile_size // 2
-                radius = tile_size - 4 // 2
+                radius = (tile_size - 4) // 2
 
                 display.circle(center_x, center_y, radius)
 
@@ -256,6 +260,8 @@ class Game:
     def __init__(self, pad) -> None:
         self.pad = pad
         self.pressed = {}
+        self.paused = False
+        self.minus_down = False
         self.frameCount = 0
         self.score = 0
         self.target_score = 5
@@ -275,6 +281,7 @@ class Game:
         self.snake = Snake()
         self.food = Food(self.snake, self.level)
         self.score = 0
+        self.paused = False
 
 
     def tick(self) -> None:
@@ -287,22 +294,26 @@ class Game:
             if self.state == State.PLAYING:
                 self.draw_game_objects()
 
-                self.snake.update_direction(self.pressed)
-                new_head = self.snake.move()
+                if not self.paused:
+                    self.snake.update_direction(self.pressed)
+                    new_head = self.snake.move()
 
-                if new_head.position == self.food.position:
-                    self.score += 1
-                    self.snake.push(new_head)
-                    self.food.reset_position(self.snake, self.level)
+                    if new_head.position == self.food.position:
+                        self.score += 1
+                        self.snake.push(new_head)
+                        self.food.reset_position(self.snake, self.level)
 
-                elif self.snake.moving() and (self.level.check_walls(new_head.position) or self.snake.contains(new_head.position)):
-                    self.cooldown = self.countdown
-                    self.state = State.SCORE
+                    elif self.snake.moving() and (self.level.check_walls(new_head.position) or self.snake.contains(new_head.position)):
+                        self.cooldown = self.countdown
+                        self.state = State.SCORE
 
-                else:
-                    self.snake.push(new_head)
-                    self.snake.pop()
+                    else:
+                        self.snake.push(new_head)
+                        self.snake.pop()
             else:
+                if self.pressed['+'] and self.state in (State.TITLE, State.SCORE, State.GAME_OVER):
+                    self.cooldown = 0
+
                 self.cooldown -= 1
                 self.show_game_text()
                 if self.cooldown < 0:
@@ -346,7 +357,7 @@ class Game:
         elif value > max1:
             return max2
         else:
-            return min2 + int(((value - min1)//(max1 - min1)) * (max2 - min2))
+            return min2 + (value - min1) * (max2 - min2) // (max1 - min1)
 
 
     def update_inputs(self) -> None:
@@ -357,6 +368,10 @@ class Game:
         self.pressed['R'] = button['R']
         self.pressed['+'] = button['+']
         self.pressed['-'] = button['-']
+
+        if button['-'] and not self.minus_down and self.state == State.PLAYING:
+            self.paused = not self.paused
+        self.minus_down = button['-']
 
 
     def draw_background(self) -> None:
@@ -400,7 +415,7 @@ class Game:
         display.text(text, x, y)
 
     def display_text_center(self, text, y, pen) -> None:
-        x = display.measure_text(text, 3)
+        x = (WIDTH - display.measure_text(text)) // 2
         self.display_text(text, x, y, pen)
 
 
